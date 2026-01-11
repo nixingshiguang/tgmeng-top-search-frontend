@@ -15,7 +15,7 @@
       />
 
       <!-- 统计数据 -->
-      <PageViewShow :show="pageViewsShow" />
+<!--      <PageViewShow :show="pageViewsShow" />-->
       <!-- 设置面板 -->
       <SettingsPanel :categories="categroies"/>
 
