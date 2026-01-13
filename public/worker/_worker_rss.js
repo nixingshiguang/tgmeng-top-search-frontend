@@ -13,22 +13,61 @@ export default function generateRSS(key) {
         return null;
     }
 
-    const info = key === "/" ? {
-        title: "糖果梦热榜 · 全站热点",
-        description: "糖果梦热榜 · 全站热点",
-        logo: "",
-        children: dataMap
-    } : findNode(dataMap, key);
-
-    if (!info) {
-        return Promise.resolve(`<?xml version="1.0"?><rss></rss>`);
+    // ❌ 禁止根路径
+    if (key === "/") {
+        return Promise.resolve(`<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+    <channel>
+        <title>错误</title>
+        <description>请访问具体平台的RSS，例如: /news/tencent/rss.xml</description>
+        <link>https://tgmeng.com</link>
+    </channel>
+</rss>`);
     }
 
+    const info = findNode(dataMap, key);
+
+    if (!info) {
+        return Promise.resolve(`<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+    <channel>
+        <title>错误</title>
+        <description>未找到该RSS源</description>
+        <link>https://tgmeng.com</link>
+    </channel>
+</rss>`);
+    }
+
+    // ✅ 检查是否是父分类（有 children 的节点）
+    if (info.children) {
+        // 列出所有子平台
+        const childKeys = Object.keys(info.children);
+        const childList = childKeys.map(k => `  - ${k}/rss.xml`).join('\n');
+
+        return Promise.resolve(`<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+    <channel>
+        <title>${escapeXml(info.title)}</title>
+        <description>此分类下有多个子平台，请访问具体的子平台RSS</description>
+        <link>https://tgmeng.com</link>
+        <item>
+            <title>可用的子平台RSS</title>
+            <description>
+                <![CDATA[
+                <p>请访问以下具体平台的RSS：</p>
+                <pre>${childList}</pre>
+                ]]>
+            </description>
+        </item>
+    </channel>
+</rss>`);
+    }
+
+    // ✅ 只有叶子节点（没有 children 的）才执行数据获取
     function fetchData(node) {
         if (node.link) {
             console.log('🌐 请求:', node.link);
 
-            // ✅ 添加完整的浏览器请求头
             return fetch(node.link, {
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
@@ -37,7 +76,7 @@ export default function generateRSS(key) {
                     'Accept-Encoding': 'gzip, deflate, br',
                     'Referer': 'https://tgmeng.com/',
                     'Origin': 'https://tgmeng.com',
-                    'X-Custom-Source': 'tgmeng-rss-worker',  // ✅ 自定义标识
+                    'X-Custom-Source': 'tgmeng-rss-worker',
                     'Cache-Control': 'no-cache',
                     'Pragma': 'no-cache'
                 }
@@ -45,7 +84,6 @@ export default function generateRSS(key) {
                 .then(res => {
                     console.log('  → 状态:', res.status, res.statusText);
 
-                    // ✅ 检查是否被 Cloudflare 拦截
                     const contentType = res.headers.get('content-type') || '';
 
                     if (res.status === 403 || contentType.includes('text/html')) {
@@ -84,10 +122,6 @@ export default function generateRSS(key) {
                     console.error(`❌ 获取失败 [${node.platform}]:`, err.message);
                     return [];
                 });
-        } else if (node.children) {
-            return Promise.all(
-                Object.values(node.children).map(fetchData)
-            ).then(results => results.flat());
         }
         return Promise.resolve([]);
     }
@@ -134,27 +168,25 @@ export default function generateRSS(key) {
         const currentYear = new Date().getFullYear();
 
         const rssXml = `<?xml version="1.0" encoding="UTF-8"?>
-        <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
-        <channel>
-            <title>${escapeXml(info.title)}</title>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+    <channel>
+        <title>${escapeXml(info.title)}</title>
+        <link>https://tgmeng.com</link>
+        <description>${escapeXml(info.description)}</description>
+        <language>zh-cn</language>
+        <copyright>Copyright ${currentYear} tgmeng.com. All rights reserved.</copyright>
+        <managingEditor>糖果梦</managingEditor>
+        <webMaster>糖果梦</webMaster>
+        <atom:link href="https://tgmeng.com${key}/rss.xml" rel="self" type="application/rss+xml" />
+        <lastBuildDate>${new Date(lastBuildDate).toUTCString()}</lastBuildDate>
+        <image>
+            <url>https://tgmeng.com/logo.png</url>
+            <title>糖果梦热榜</title>
             <link>https://tgmeng.com</link>
-            <description>${escapeXml(info.description)}</description>
-            
-            <language>zh-cn</language>
-            <copyright>Copyright ${currentYear} tgmeng.com. All rights reserved.</copyright>
-            <managingEditor>糖果梦</managingEditor>
-            <webMaster>糖果梦</webMaster>
-            <atom:link href="https://tgmeng.com${key}/rss.xml" rel="self" type="application/rss+xml" />
-            
-            <lastBuildDate>${new Date(lastBuildDate || Date.now()).toUTCString()}</lastBuildDate>
-            <image>
-                <url>https://tgmeng.com/logo.png</url>
-                <title>糖果梦热榜</title>
-                <link>https://tgmeng.com</link>
-            </image>
-            ${itemsXml}
-        </channel>
-        </rss>`;
+        </image>
+        ${itemsXml}
+    </channel>
+</rss>`;
 
         console.log('✅ RSS 生成完成:', rssXml.length, '字节');
         return rssXml;
