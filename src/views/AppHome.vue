@@ -188,7 +188,7 @@ export default {
       this.activeCategory = cat;
 
       // 把全部数据下收藏的卡片方法收藏分类下
-      if (cat.routerName === 'favorites') {
+      if (cat.id === 13) {
         // 先清空收藏分类下的卡片
         this.activeCategory.subCategories.splice(0);
 
@@ -203,11 +203,6 @@ export default {
             }
           });
         }
-      }
-
-      // 突发热点
-      if (cat.routerName === 'sudden') {
-        console.log(cat.routerName);
       }
 
       // 对数据进行排序，因为从缓存中拿到的用户的sort数据，我们需要根据这个sort展示
